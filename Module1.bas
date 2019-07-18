@@ -185,3 +185,75 @@ NotExists:
   Worksheets().Add After:=Worksheets(Worksheets.Count)   ' 末尾に追加
   ActiveSheet.Name = strSheetName
 End Sub
+
+'CSVに出力する
+Sub OutputCSV()
+  Dim cnt As Long
+  Dim TARGET As String
+  Dim csvFile As String
+  Dim strLine As String
+  Dim R As Long
+  Dim C As Long
+  Dim MaxCol As Long
+  Dim ST As ADODB.Stream
+    
+  Dim row As Long: row = 3
+  Do While Cells(row, 2).Value <> ""
+    'SIGNチェック(空白以外が対象)
+    If Cells(row, 1).Value <> "" Then
+      TARGET = Cells(row, 2).Value
+      'シートチェック
+      On Error GoTo NotExists
+      Sheets(TARGET).Select
+      On Error GoTo 0
+      'ファイル名設定
+      csvFile = ActiveWorkbook.Path & "\" & TARGET & ".csv"
+      C = 1
+      Do While Cells(4, C).Value <> ""
+        MaxCol = C
+        C = C + 1
+      Loop
+      'ADODB.Streamオブジェクトを生成
+      Dim adoSt As Object
+      Set adoSt = CreateObject("ADODB.Stream")
+      With adoSt
+        .Charset = "UTF-8"
+        .LineSeparator = adLF
+        .Open
+        R = 6
+        Do While Cells(R, 1).Value <> ""
+          strLine = Cells(R, 1).Value
+          For C = 2 To MaxCol
+            strLine = strLine & "," & Cells(R, C).Value
+          Next C
+          .WriteText strLine, adWriteLine
+          R = R + 1
+        Loop
+        .Position = 0          'ストリームの位置を0にする
+        .Type = adTypeBinary   'データの種類をバイナリデータに変更
+        .Position = 3          'ストリームの位置を3にする
+
+        Dim byteData() As Byte '一時格納用
+        byteData = .Read       'ストリームの内容を一時格納用変数に保存
+        .Close                 '一旦ストリームを閉じる（リセット）
+
+        .Open                  'ストリームを開く
+        .Write byteData        'ストリームに一時格納したデータを流し込む
+        .SaveToFile csvFile, adSaveCreateOverWrite
+        .Close
+      End With
+      cnt = cnt + 1
+      Sheets("テーブル一覧").Select
+    End If
+    row = row + 1
+  Loop
+  If cnt = 0 Then
+    MsgBox "A列にサインがありません！"
+  Else
+    MsgBox "CSV出力終了"
+  End If
+  Exit Sub
+
+NotExists:
+  MsgBox "データシートがありません！"
+End Sub
